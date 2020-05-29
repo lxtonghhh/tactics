@@ -140,11 +140,11 @@ class ChessboardDemo(ShowBase):
 
     def initA(self):
         # 设置红方棋子
-        self.ca = make_champions("Ali", 1) + make_champions("Lucian", 1)
+        self.ca = make_champions("Ali", 8) + make_champions("Lucian", 1)
 
     def initB(self):
         # 设置蓝方棋子
-        self.cb = make_champions("Yasso", 1)
+        self.cb = make_champions("Yasso", 9)
 
     def start_fight(self):
 

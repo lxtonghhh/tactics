@@ -17,7 +17,7 @@ CHAMPION_DICT = {
     ),
     "Yasso": dict(
         quality=2,
-        character="shooter",
+        character="warrior",
         AD=[50, 90, 160],
         AP=[0, 0, 0],
         DEF=[30, 30, 30],
@@ -95,7 +95,8 @@ class Champion(object):
         self.CRT = CRT
         self.HP = HP
         self.HP_MAX = HP
-        self.MP = MP
+        self.MP = 0
+        self.MP_MAX = MP
         self.range = range
         self.speed = speed
 
@@ -123,6 +124,9 @@ class Champion(object):
     def check_attack(self):
         return time.time() - self.attack_timer > self.attack_interval
 
+    def check_spell(self):
+        return self.MP >= self.MP_MAX
+
     def check_move(self):
         return time.time() - self.move_timer > self.move_interval
 
@@ -136,13 +140,26 @@ class Champion(object):
         self.move_timer = time.time()
 
     def attack(self, target):
+        # 进行一次攻击获得5能量
+        self.MP += 5
         dealt_damage = self.AD if not self.check_critical() else self.AD * 2
         target.undertake_attack_damage(dealt_damage)
 
     def undertake_attack_damage(self, damage):
         actual_damage = damage / (1 + self.DEF / 100)
+        # 受到一次伤害获得伤害值10%的能量
+        self.MP += int(actual_damage / 10)
         self.set_HP(self.HP - actual_damage)
-        print(self.name, "受到伤害： ", actual_damage, "剩余生命值： ", self.HP)
+        print(self.name, "受到物理伤害： ", actual_damage, "剩余生命值： ", self.HP)
+        self.check_alive()
+        return actual_damage
+
+    def undertake_magic_damage(self, damage):
+        actual_damage = damage / (1 + self.RES / 100)
+        # 受到一次伤害获得伤害值10%的能量
+        self.MP += int(actual_damage / 10)
+        self.set_HP(self.HP - actual_damage)
+        print(self.name, "受到魔法伤害： ", actual_damage, "剩余生命值： ", self.HP)
         self.check_alive()
         return actual_damage
 
@@ -164,5 +181,7 @@ def make_champion(name, level):
     # print(champion_info)
     obj = Champion(**champion_info)
     return obj
+
+
 def make_champions(name, num):
     return [make_champion(name, 2) for i in range(num)]

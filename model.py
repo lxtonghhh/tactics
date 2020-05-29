@@ -48,6 +48,10 @@ class Piece(object):
     def delete(self):
         self.obj.detachNode()
 
+    def lookAt(self, other):
+        pass
+        #self.obj.lookAt(other.obj)
+        #self.obj.setH(180)
 
 class Pawn(Piece):
     model = "models/fighter"

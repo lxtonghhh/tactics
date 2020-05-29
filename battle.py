@@ -1,6 +1,7 @@
 from tactics.common import Position, TEAM_B, TEAM_A
 from tactics.champion import make_champion
 from tactics.model import load_champion
+from tactics.utils import choose, choose_one
 
 
 class BattleController(object):
@@ -88,16 +89,26 @@ class BattleController(object):
                     self.pieces[new_pos.idx] = load_champion(name=name, posi=new_pos.idx, heading=90, color=TEAM_A)
                 else:
                     self.pieces[new_pos.idx] = load_champion(name=name, posi=new_pos.idx, heading=-90, color=TEAM_B)
+        elif event == "attack":
+            posi, tpi = info["posi"], info["target_posi"]
+            self.pieces[posi].lookAt(self.pieces[tpi])
         else:
             pass
 
     def get_champion(self, idx):
         return self.battle_queue[idx]
 
-    def get_position(self, idx):
+    def get_position_str(self, idx):
         pos = self.position_queue[idx]
         if pos:
             return "({0},{1})".format(pos.x, pos.y)
+        else:
+            return None
+
+    def get_position(self, idx):
+        pos = self.position_queue[idx]
+        if pos:
+            return pos
         else:
             return None
 
@@ -266,6 +277,76 @@ class BattleController(object):
             print("未发生移动".format())
             return None
 
+    def champion_die(self, who, source, cause="Attack", ):
+        # 阵亡结算
+        print("---->棋子{0} {1} 于位置{2}阵亡 受到来自{3} {4} 的{5}伤害阵亡".format(who.idx, who.name,
+                                                                    self.get_position_str(who.idx), source.idx,
+                                                                    source.name, cause, ))
+        self.alive_queue[who.idx] = False
+        # 移出
+        pos = self.position_queue[who.idx]
+        self.board[pos.idx] = 0
+        self.position_queue[who.idx] = None
+        # 调用更新渲染状态接口
+        self.update_render(event="death", info=dict(idx=who.idx, pos=pos))
+
+    def cast_spell(self, champion):
+        idx, name = champion.idx, champion.name,
+        if name == "Lucian":
+            # 随机对射程3内敌人进行一次攻击造成等于物理攻击力80%的魔法伤害,并进行一次位移
+            targets = self._get_enemy_in_distance(idx, distance=3)
+            if len(targets) > 0:
+                target = choose_one(targets)
+                # 造成等于物理攻击力80%的魔法伤害
+                target.undertake_magic_damage(damage=100 * 0.8)
+                # 阵亡判定
+                if target.check_alive():
+                    pass
+                else:
+                    # 目标阵亡
+                    self.champion_die(who=target, source=champion, cause="Spell", )
+                # todo 进行一次位移 拉开与敌人距离
+                # 重置MP
+                champion.MP = 0
+            else:
+                pass
+
+        elif name == "Ali":
+            # 随机对射程4内随机3个敌人进行造成120魔法伤害
+            targets = self._get_enemy_in_distance(idx, distance=4)
+            if len(targets) > 0:
+                targets = choose(targets, 3)
+                # 对每个敌人造成120魔法伤害
+                for target in targets:
+                    target.undertake_magic_damage(damage=120)
+                    # 阵亡判定
+                    if target.check_alive():
+                        pass
+                    else:
+                        # 目标阵亡
+                        self.champion_die(who=target, source=champion, cause="Spell", )
+                champion.MP = 0
+            else:
+                pass
+        elif name == "Yasso":
+            # 射程1内随机1个敌人进行造成150物理伤害,并回复100生命值
+            targets = self._get_enemy_in_distance(idx, distance=1)
+            if len(targets) > 0:
+                target = choose_one(targets)
+                # 造成150物理伤害
+                target.undertake_attack_damage(damage=150)
+                # 回复100生命值
+                champion.HP += 100
+                # 阵亡判定
+                if target.check_alive():
+                    pass
+                else:
+                    self.champion_die(who=target, source=champion, cause="Spell", )
+                # 重置MP
+                champion.MP = 0
+            else:
+                pass
+
     def fight(self):
         """
         阵亡或者移动位置
@@ -281,30 +362,37 @@ class BattleController(object):
             else:
                 pass
             champion = self.battle_queue[i]
+            print("->现在轮到{0} {1} 位置{2} 当前能量值{3}".format(i, champion.name, self.get_position(idx=i), champion.MP))
+            # 技能判定
+            if champion.check_spell():
+                print("--->{0} {1}释放技能".format(champion.idx, champion.name))
+                self.cast_spell(champion=champion)
+            else:
+                # 技能尚未冷却
+                print("--->技能尚未冷却".format())
+                pass
 
-            print("->现在轮到{0} {1} 位置{2}".format(i, champion.name, self.get_position(idx=i)))
+            # 攻击判定
             mve = self.search_target(idx=i, distance=champion.range)  # champion.range
             if mve >= 0:
                 target = self.battle_queue[mve]
-                print("-->找到攻击目标{0} {1} 位置{2}".format(mve, target.name, self.get_position(idx=mve)))
+                cur_pos = self.get_position(idx=i)
+                target_pos_str = self.get_position_str(idx=mve)
+                target_pos = self.get_position(idx=mve)
+                print("-->找到攻击目标{0} {1} 位置{2}".format(mve, target.name, target_pos_str))
                 if champion.check_attack():
-                    champion.update_attack_timer()
                     print("--->进行攻击".format())
+                    print("--->{0} 朝向 {1}".format(cur_pos.idx, target_pos_str))
+                    # 攻击时朝向调整
+                    # self.update_render(event="attack",info=dict(posi=cur_pos.idx, target_posi=target_pos.idx))
+                    champion.update_attack_timer()
                     champion.attack(target)
+
                     if target.check_alive():
                         pass
                     else:
                         # 目标阵亡
-                        print("---->目标{0} {1}阵亡".format(mve, target.name, ))
-                        self.alive_queue[mve] = False
-                        # 移出
-                        pos = self.position_queue[mve]
-                        self.board[pos.idx] = 0
-                        self.position_queue[mve] = None
-                        # 调用更新渲染状态接口
-                        self.update_render(event="death", info=dict(idx=mve, pos=pos))
-                        # return (mve, pos, None)
-
+                        self.champion_die(who=target, source=champion, cause="Attack", )
                 else:
                     # 攻击尚未冷却
                     print("--->攻击尚未冷却".format())
@@ -313,6 +401,8 @@ class BattleController(object):
                 print("-->未找到攻击目标 开始移动".format())
 
                 if champion.check_move():
+                    # 每次可以移动时获得2能量
+                    champion.MP += 2
                     champion.update_move_timer()
                     print("--->进行移动".format())
                     old_pos = self.position_queue[i]
