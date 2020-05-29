@@ -29,6 +29,7 @@ def choose(seq: list, n: int):
 
 
 if __name__ == "__main__":
+    print(round(0.00042,4))
     for i in range(10):
         s = [1, 2]
         print(choose(s, 3))

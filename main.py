@@ -24,7 +24,7 @@ from tactics.common import Position, posi2pos
 from tactics.champion import make_champions
 from tactics.battle import BattleController
 from tactics.model import load_champion
-import sys
+import sys,time
 from enum import Enum
 
 GREY = (0.85, 0.85, 0.85, 1)
@@ -159,6 +159,7 @@ class ChessboardDemo(ShowBase):
         elif self.gamestatus == GameStatus.Strategy:
             self.gamestatus = GameStatus.Battle
             self.update_score_board()
+            self.battle_time = time.time()
             self.battleTask = taskMgr.add(self.battleTask, 'battleTask')
         else:
             pass
@@ -270,7 +271,8 @@ class ChessboardDemo(ShowBase):
         bq = bc.battle_queue
         for i, champion in enumerate(bq):
             if champion.name != "Blank":
-                self.blood_bars[i].setText("{0}: {1}/{2}".format(champion.name, int(champion.HP), champion.HP_MAX))
+                self.blood_bars[i].setText(
+                    "{0}: {1}/{2}".format(champion.name, int(champion.HP) if champion.HP > 0 else 0, champion.HP_MAX))
 
     def renderChessboard(self):
 
@@ -439,12 +441,14 @@ class ChessboardDemo(ShowBase):
             self.scoreA += 1
             self.gamestatus = GameStatus.End
             self.update_score_board()
+            print("平均每个Tick用时：{0}s".format(round((time.time() - self.battle_time) / self.tick, 6)))
             return Task.done
         elif Bwin:
             print("======本轮战斗结束 蓝方获胜======")
             self.scoreB += 1
             self.gamestatus = GameStatus.End
             self.update_score_board()
+            print("平均每个Tick用时：{0}s".format(round((time.time() - self.battle_time) / self.tick, 6)))
             return Task.done
         else:
             bc.fight()
@@ -452,6 +456,9 @@ class ChessboardDemo(ShowBase):
 
     def mouseTask(self, task):
         # This task deals with the highlighting and dragging based on the mouse
+        if self.gamestatus!=GameStatus.Strategy:
+            #只在布阵环节生效
+            return Task.cont
 
         # First, clear the current highlight
         if self.hiSq is not False:
@@ -494,6 +501,8 @@ class ChessboardDemo(ShowBase):
         return Task.cont
 
     def grabPiece(self):
+        if self.gamestatus != GameStatus.Strategy:
+            return None
         # If a square is highlighted and it has a piece, set it to dragging
         # mode
         if self.hiSq is not False and self.pieces[self.hiSq]:
@@ -502,6 +511,8 @@ class ChessboardDemo(ShowBase):
             self.hiSq = False
 
     def releasePiece(self):
+        if self.gamestatus != GameStatus.Strategy:
+            return None
         # Letting go of a piece. If we are not on a square, return it to its original
         # position. Otherwise, swap it with the piece in the new square
         # Make sure we really are dragging something
